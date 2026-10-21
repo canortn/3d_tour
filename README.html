@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hisar 3D Tur — Prototip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e7ecf1;
+    --surface: rgba(255, 255, 255, 0.74);
+    --surface-strong: rgba(255, 255, 255, 0.95);
+    --line: rgba(17, 36, 56, 0.13);
+    --text: #0f1d2b;
+    --muted: #55667a;
+    --accent: #0a66c2;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(10, 102, 194, 0.12);
+    --scene-bg: #dfe5eb;
+    --map-fill: rgba(15, 29, 43, 0.06);
+    --veil: rgba(223, 229, 235, 0.55);
+    --is-dark: 0;
+    color-scheme: light;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #070b11;
+      --surface: rgba(10, 16, 25, 0.68);
+      --surface-strong: rgba(12, 19, 30, 0.95);
+      --line: rgba(120, 205, 255, 0.17);
+      --text: #e7f2fd;
+      --muted: #8ca1b6;
+      --accent: #45d6ff;
+      --accent-ink: #03131b;
+      --accent-soft: rgba(69, 214, 255, 0.14);
+      --scene-bg: #0a1018;
+      --map-fill: rgba(231, 242, 253, 0.06);
+      --veil: rgba(7, 11, 17, 0.55);
+      --is-dark: 1;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #070b11;
+    --surface: rgba(10, 16, 25, 0.68);
+    --surface-strong: rgba(12, 19, 30, 0.95);
+    --line: rgba(120, 205, 255, 0.17);
+    --text: #e7f2fd;
+    --muted: #8ca1b6;
+    --accent: #45d6ff;
+    --accent-ink: #03131b;
+    --accent-soft: rgba(69, 214, 255, 0.14);
+    --scene-bg: #0a1018;
+    --map-fill: rgba(231, 242, 253, 0.06);
+    --veil: rgba(7, 11, 17, 0.55);
+    --is-dark: 1;
+    color-scheme: dark;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: "Manrope", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+
+  #scene {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    display: block; touch-action: none; cursor: grab; outline: none;
+  }
+
+  .glass {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    border-radius: 16px;
+  }
+
+  /* Sol sütun: başlık + bölgeler */
+  .side {
+    position: fixed;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    left: calc(16px + env(safe-area-inset-left, 0px));
+    width: 250px;
+    max-height: calc(100% - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; gap: 12px;
+    pointer-events: none;
+  }
+  .side > * { pointer-events: auto; }
+  .brand { padding: 14px 16px; }
+  .brand-row { display: flex; align-items: center; gap: 10px; }
+  .brand h1 { margin: 0; font-size: 1.08rem; font-weight: 800; letter-spacing: -0.015em; }
+  .badge {
+    font-size: 0.72rem; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); padding: 3px 9px; border-radius: 999px;
+  }
+  #zone-name { margin: 4px 0 0; font-size: 0.9rem; color: var(--muted); }
+
+  .zones { padding: 10px; overflow-y: auto; min-height: 0; }
+  .zones h2 { margin: 0; font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+  .zones-head { padding: 4px 8px 8px; }
+  .zones-head p { margin: 2px 0 0; font-size: 0.78rem; color: var(--muted); }
+  .zone-btn, .spot-btn {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    text-align: left; color: var(--text); background: transparent;
+    border: 0; border-radius: 10px; padding: 9px 10px; cursor: pointer;
+  }
+  .zone-btn { font-size: 0.94rem; }
+  .zone-btn:hover:not(:disabled), .spot-btn:hover { background: var(--accent-soft); }
+  .zone-btn[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  .zone-btn:disabled { color: var(--muted); cursor: default; }
+  .tag {
+    flex: none; font-size: 0.7rem; font-weight: 600; color: var(--muted);
+    border: 1px solid var(--line); padding: 2px 7px; border-radius: 999px;
+  }
+  .spots { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .spots h2 { padding: 0 8px 6px; }
+  .spot-btn { justify-content: flex-start; font-size: 0.88rem; padding: 7px 10px; }
+  .spot-btn::before {
+    content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* Harita */
+  .map {
+    position: fixed;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  #map { width: 168px; height: 128px; display: block; }
+  .help-btn {
+    font-size: 0.82rem; font-weight: 600; color: var(--text);
+    background: transparent; border: 1px solid var(--line); border-radius: 10px;
+    padding: 7px 10px; cursor: pointer;
+  }
+  .help-btn:hover { background: var(--accent-soft); }
+
+  /* Bilgi kartı */
+  .card {
+    position: fixed;
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    top: calc(216px + env(safe-area-inset-top, 0px));
+    width: min(320px, calc(100vw - 32px));
+    padding: 16px 18px 18px;
+  }
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .card h3 { margin: 2px 0 0; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
+  .card p { margin: 8px 0 0; font-size: 0.92rem; line-height: 1.55; }
+  .close-btn {
+    flex: none; font-size: 0.8rem; font-weight: 600; color: var(--muted);
+    background: transparent; border: 1px solid var(--line); border-radius: 8px;
+    padding: 5px 9px; cursor: pointer;
+  }
+  .close-btn:hover { color: var(--text); background: var(--accent-soft); }
+
+  /* İpucu */
+  .toast {
+    position: fixed; left: 50%;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    padding: 10px 16px; font-size: 0.9rem; text-align: center;
+    width: max-content; max-width: calc(100vw - 32px);
+    opacity: 0; transition: opacity 0.4s ease;
+  }
+  .toast.show { opacity: 1; }
+
+  /* Giriş ekranı */
+  .intro {
+    position: fixed; inset: 0; z-index: 30;
+    display: grid; place-items: center; overflow-y: auto;
+    padding: calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    background: var(--veil);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .intro-card {
+    width: min(460px, 100%);
+    background: var(--surface-strong);
+    border: 1px solid var(--line); border-radius: 22px;
+    padding: 28px 26px 24px;
+  }
+  .intro-card h2 {
+    margin: 12px 0 10px; font-size: clamp(1.45rem, 4.6vw, 1.85rem);
+    line-height: 1.15; font-weight: 800; letter-spacing: -0.025em;
+  }
+  .intro-card > p { margin: 0 0 16px; color: var(--muted); line-height: 1.55; font-size: 0.95rem; }
+  .steps li { display: flex; align-items: center; gap: 12px; padding: 7px 0; font-size: 0.95rem; }
+  .ico {
+    flex: none; width: 38px; height: 38px; border-radius: 12px;
+    display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .ico svg { width: 20px; height: 20px; }
+  .note { margin: 14px 0 18px; font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+  .primary {
+    width: 100%; font-weight: 700; font-size: 1rem;
+    color: var(--accent-ink); background: var(--accent);
+    border: 0; border-radius: 14px; padding: 14px 18px; cursor: pointer;
+  }
+  .primary:hover { filter: brightness(1.06); }
+
+  .fallback {
+    position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; z-index: 40;
+    background: var(--bg);
+  }
+  .fallback div { max-width: 420px; text-align: center; line-height: 1.55; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast { transition: none; }
+  }
+
+  /* Telefon düzeni */
+  @media (max-width: 720px) {
+    .side { width: auto; right: calc(152px + env(safe-area-inset-right, 0px)); }
+    .brand { padding: 11px 13px; }
+    .brand h1 { font-size: 1rem; }
+    #zone-name { font-size: 0.84rem; }
+    .zones {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      border-radius: 18px 18px 0 0; border-bottom: 0;
+      padding: 10px calc(10px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(10px + env(safe-area-inset-left, 0px));
+      overflow-x: auto; overflow-y: hidden;
+    }
+    .zones-head, .spots { display: none; }
+    #zone-list { display: flex; gap: 6px; }
+    .zone-btn { width: auto; white-space: nowrap; padding: 9px 12px; }
+    #map { width: 116px; height: 90px; }
+    .help-btn { font-size: 0.76rem; padding: 6px 8px; }
+    .card {
+      left: calc(12px + env(safe-area-inset-left, 0px));
+      right: calc(12px + env(safe-area-inset-right, 0px));
+      width: auto; top: auto;
+      bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    }
+    .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  }
+</style>
+</head>
+<body>
+  <canvas id="scene" aria-label="Okulun 3D maket görünümü. Sürükleyerek etrafa bakılır, yere dokunarak yürünür."></canvas>
+
+  <div class="side">
+    <header class="brand glass">
+      <div class="brand-row"><h1>Hisar 3D Tur</h1><span class="badge">Prototip</span></div>
+      <p id="zone-name">Yükleniyor</p>
+    </header>
+    <nav class="zones glass" aria-label="Bölgeler">
+      <div class="zones-head"><h2>Bölgeler</h2><p id="zone-count"></p></div>
+      <ul id="zone-list"></ul>
+      <div class="spots">
+        <h2>Bu bölgede</h2>
+        <ul id="spot-list"></ul>
+      </div>
+    </nav>
+  </div>
+
+  <aside class="map glass" aria-label="Bölge haritası ve konumun">
+    <canvas id="map"></canvas>
+    <button class="help-btn" id="help-btn" type="button">Nasıl gezilir?</button>
+  </aside>
+
+  <article class="card glass" id="card" hidden aria-live="polite">
+    <div class="card-head">
+      <h3 id="card-title"></h3>
+      <button class="close-btn" id="card-close" type="button">Kapat</button>
+    </div>
+    <p id="card-text"></p>
+  </article>
+
+  <div class="toast glass" id="toast" hidden role="status"></div>
+
+  <div class="intro" id="intro" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+    <div class="intro-card">
+      <span class="badge">Prototip</span>
+      <h2 id="intro-title">Hisar School’u içeriden gez</h2>
+      <p>Bu sayfa, okulun 3D sanal turunun nasıl görüneceğini gösteriyor. Gerçek sürümde maket sahnelerin yerinde, okulda çekilen videolardan yapay zekâ ile üretilen gerçekçi 3D modeller olacak.</p>
+      <ul class="steps">
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-4 5 4 5M16 7l4 5-4 5M4 12h16"/></svg></span>Sürükleyerek etrafına bak</li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><ellipse cx="12" cy="15" rx="8" ry="3.5"/><circle cx="12" cy="15" r="1.4" fill="currentColor"/><path d="M12 11V4" stroke-linecap="round"/></svg></span>Yere dokun ya da tıkla, oraya yürü</li>
+        <li><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2.6" fill="currentColor"/><circle cx="12" cy="12" r="7.5"/></svg></span>Parlayan noktalarla bilgi kartını aç</li>
+      </ul>
+      <p class="note">Bilgisayarda W A S D tuşlarıyla da yürüyebilirsin. Bilgi kartlarındaki metinler örnektir.</p>
+      <button class="primary" id="start" type="button">Turu başlat</button>
+    </div>
+  </div>
+
+  <div class="fallback" id="fallback" hidden>
+    <div><strong>3D görünüm açılamadı.</strong><br>Tarayıcın WebGL desteklemiyor olabilir. Güncel bir Chrome, Safari veya Edge ile tekrar dene.</div>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(async () => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  const EYE = 1.6, SPEED = 2.2, LOOK = 0.0042;
+
+  const canvas = $('scene');
+  if (!window.THREE) { $('fallback').hidden = false; return; }
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); }
+  catch (err) { $('fallback').hidden = false; return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#dfe5eb');
+  scene.fog = new THREE.Fog('#dfe5eb', 0.2, 1.4);
+  const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 200);
+  camera.rotation.order = 'YXZ';
+
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xbdb4a6, 0.78);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, 0.82);
+  sun.castShadow = true;
+  const smSize = coarse ? 1024 : 2048;
+  sun.shadow.mapSize.set(smSize, smSize);
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.02;
+  scene.add(sun); scene.add(sun.target);
+
+  // ---------- Tema ----------
+  const theme = {};
+  function readTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = n => cs.getPropertyValue(n).trim();
+    theme.bg = v('--scene-bg') || '#dfe5eb';
+    theme.accent = v('--accent') || '#0a66c2';
+    theme.accentInk = v('--accent-ink') || '#ffffff';
+    theme.surface = v('--surface-strong') || '#ffffff';
+    theme.muted = v('--muted') || '#55667a';
+    theme.mapFill = v('--map-fill') || 'rgba(0,0,0,0.06)';
+    theme.dark = v('--is-dark') === '1';
+  }
+  readTheme();
+
+  // ---------- Malzemeler ----------
+  const C = {
+    floor: '#cfc8bc', wall: '#eeebe5', cut: '#353d48', frame: '#5d6772', door: '#a48f78',
+    wood: '#c2a888', woodDark: '#8e755b', metal: '#9ea7b1', dark: '#4a535e', light: '#d3d8de',
+    blue: '#7d94a9', blue2: '#8aa0b4', rust: '#b3876f', green: '#7e9b70', cork: '#c9a87e',
+    fabric: '#8697a6', rug: '#aab4bd', inlay: '#bdb5a8', line: '#bdb5a8'
+  };
+  const BOOKS = ['#8e5a4f', '#4f6d8e', '#6e8a5a', '#b0894f', '#7a5f86', '#c9bba2', '#3f5161', '#a35d52', '#5b7f7a', '#d3c7b1'];
+
+  const matCache = new Map();
+  function mat(color) {
+    if (!matCache.has(color)) matCache.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.92, metalness: 0 }));
+    return matCache.get(color);
+  }
+  const glassMat = new THREE.MeshStandardMaterial({ color: '#cddfec', emissive: '#a3c6df', emissiveIntensity: 0.32, roughness: 0.25 });
+  const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+  function unique(m) { m.userData.unique = true; return m; }
+  function accentBasic(opts) { return unique(new THREE.MeshBasicMaterial(Object.assign({ color: theme.accent }, opts || {}))); }
+  function texMat(tex) { return unique(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 })); }
+  function seeded(s) { return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
+
+  // ---------- Geometri yardımcıları ----------
+  function box(g, w, h, d, x, y, z, color, o) {
+    o = o || {};
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof color === 'string' ? mat(color) : color);
+    m.position.set(x, y + h / 2, z);
+    m.castShadow = o.cast !== false; m.receiveShadow = true;
+    g.add(m); return m;
+  }
+  function cyl(g, rt, rb, h, x, y, z, color) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 20), mat(color));
+    m.position.set(x, y + h / 2, z);
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m); return m;
+  }
+  function wallPanel(g, side, W, D, u, w, h, y, material, depth) {
+    depth = depth || 0.04;
+    const ns = side === 'n' || side === 's';
+    const m = new THREE.Mesh(new THREE.BoxGeometry(ns ? w : depth, h, ns ? depth : w), material);
+    const off = depth / 2 + 0.004;
+    if (side === 'n') m.position.set(u, y + h / 2, -D / 2 + off);
+    if (side === 's') m.position.set(u, y + h / 2, D / 2 - off);
+    if (side === 'w') m.position.set(-W / 2 + off, y + h / 2, u);
+    if (side === 'e') m.position.set(W / 2 - off, y + h / 2, u);
+    m.receiveShadow = true; g.add(m); return m;
+  }
+  function windowOn(g, side, W, D, u, w, h, y) {
+    wallPanel(g, side, W, D, u, w + 0.12, h + 0.12, Math.max(0, y - 0.06), mat(C.frame), 0.03);
+    wallPanel(g, side, W, D, u, w, h, y, glassMat, 0.045);
+    wallPanel(g, side, W, D, u, 0.05, h, y, mat(C.frame), 0.06);
+  }
+  function door(g, side, W, D, u, w) {
+    wallPanel(g, side, W, D, u, w + 0.14, 2.32, 0, mat(C.frame), 0.03);
+    wallPanel(g, side, W, D, u, w, 2.25, 0, mat(C.door), 0.05);
+  }
+  function shell(g, W, D, H) {
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), mat(C.floor));
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; g.add(floor);
+    const t = 0.24;
+    [[W + 2 * t, t, 0, -D / 2 - t / 2], [W + 2 * t, t, 0, D / 2 + t / 2], [t, D, -W / 2 - t / 2, 0], [t, D, W / 2 + t / 2, 0]].forEach(a => {
+      box(g, a[0], H, a[1], a[2], 0, a[3], C.wall);
+      box(g, a[0] + 0.004, 0.035, a[1] + 0.004, a[2], H, a[3], C.cut, { cast: false });
+    });
+    return floor;
+  }
+  function chair(g, x, z, face, color) {
+    box(g, 0.44, 0.04, 0.42, x, 0.44, z, color);
+    box(g, 0.44, 0.42, 0.04, x, 0.48, z + face * 0.2, color);
+    [-0.19, 0.19].forEach(dx => box(g, 0.035, 0.44, 0.38, x + dx, 0, z, C.metal));
+  }
+  function desk(g, x, z) {
+    box(g, 1.2, 0.04, 0.6, x, 0.72, z, C.wood);
+    [-0.56, 0.56].forEach(dx => box(g, 0.04, 0.72, 0.54, x + dx, 0, z, C.metal));
+  }
+  function bench(g, x, z) {
+    box(g, 0.5, 0.06, 2.2, x, 0.42, z, C.wood);
+    [-0.95, 0.95].forEach(dz => box(g, 0.44, 0.42, 0.06, x, 0, z + dz, C.dark));
+  }
+  function plant(g, x, z) {
+    cyl(g, 0.3, 0.24, 0.55, x, 0, z, C.rust);
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.48, 18, 14), mat(C.green));
+    leaf.position.set(x, 1.0, z); leaf.castShadow = true; g.add(leaf);
+  }
+  function printer(g, x, y, z) {
+    box(g, 0.52, 0.58, 0.5, x, y, z, C.dark);
+    box(g, 0.42, 0.38, 0.04, x, y + 0.1, z + 0.25, '#cdd4db', { cast: false });
+    const s = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.012), accentBasic());
+    s.position.set(x + 0.15, y + 0.06, z + 0.26); g.add(s);
+  }
+  function armchair(g, x, z, r) {
+    const a = new THREE.Group(); a.position.set(x, 0, z); a.rotation.y = r;
+    box(a, 0.82, 0.42, 0.8, 0, 0, 0, C.fabric);
+    box(a, 0.82, 0.55, 0.16, 0, 0.42, 0.32, C.fabric);
+    [-0.34, 0.34].forEach(dx => box(a, 0.14, 0.24, 0.8, dx, 0.42, 0, C.fabric));
+    g.add(a);
+  }
+  function books(list, rand, o) {
+    o.levels.forEach(y => {
+      let p = o.from + 0.02;
+      while (p < o.to - 0.06) {
+        if (rand() < 0.04) { p += 0.08 + rand() * 0.2; continue; }
+        const w = 0.035 + rand() * 0.045, h = 0.2 + rand() * 0.13;
+        list.push({ axis: o.axis, along: p + w / 2, y: y + h / 2, across: o.face, w, h, d: o.depth - rand() * 0.04, c: BOOKS.at(Math.floor(rand() * BOOKS.length)) });
+        p += w + 0.004;
+      }
+    });
+  }
+  function instBooks(g, list) {
+    const m = unique(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85 }));
+    const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), m, list.length);
+    const o = new THREE.Object3D(), col = new THREE.Color();
+    list.forEach((b, i) => {
+      if (b.axis === 'z') { o.position.set(b.across, b.y, b.along); o.scale.set(b.d, b.h, b.w); }
+      else { o.position.set(b.along, b.y, b.across); o.scale.set(b.w, b.h, b.d); }
+      o.updateMatrix(); inst.setMatrixAt(i, o.matrix); inst.setColorAt(i, col.set(b.c));
+    });
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    inst.castShadow = true; inst.receiveShadow = true; g.add(inst);
+  }
+  function canvasTex(w, h, draw) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+  }
+  function signTex() {
+    return canvasTex(1024, 256, (ctx, w, h) => {
+      ctx.fillStyle = '#2b333e'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#f3f5f8'; ctx.font = '700 132px Manrope, system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Hisar School', w / 2, h / 2 + 6);
+    });
+  }
+  function boardTex() {
+    return canvasTex(1024, 328, (ctx, w, h) => {
+      ctx.fillStyle = '#f6f6f2'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#2f3b4a'; ctx.font = '700 46px Manrope, system-ui, sans-serif';
+      ctx.fillText('Bugün: Fonksiyonlar', 56, 84);
+      ctx.lineCap = 'round'; ctx.strokeStyle = '#9aa5b1'; ctx.lineWidth = 7;
+      [[56, 140, 360], [56, 186, 300], [56, 232, 330]].forEach(a => { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(a[0] + a[2], a[1]); ctx.stroke(); });
+      ctx.strokeStyle = '#2f3b4a'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(600, 270); ctx.lineTo(960, 270); ctx.moveTo(780, 300); ctx.lineTo(780, 40); ctx.stroke();
+      ctx.strokeStyle = '#2d6fb7'; ctx.lineWidth = 6; ctx.beginPath();
+      for (let i = 0; i <= 60; i++) { const t = -1 + i / 30, px = 780 + t * 150, py = 270 - t * t * 210; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+      ctx.stroke();
+      ctx.fillStyle = '#2d6fb7'; ctx.font = '700 40px Manrope, system-ui, sans-serif';
+      ctx.fillText('y = x²', 860, 96);
+    });
+  }
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function labelSprite(text, muted) {
+    const font = '700 46px Manrope, system-ui, sans-serif';
+    const c = document.createElement('canvas'), ctx = c.getContext('2d');
+    ctx.font = font;
+    const h = 92, pad = 36, w = Math.ceil(ctx.measureText(text).width + pad * 2);
+    c.width = w; c.height = h;
+    ctx.font = font;
+    rr(ctx, 3, 3, w - 6, h - 6, (h - 6) / 2);
+    ctx.fillStyle = muted ? theme.surface : theme.accent; ctx.fill();
+    if (muted) { ctx.lineWidth = 3; ctx.strokeStyle = theme.muted; ctx.stroke(); }
+    ctx.fillStyle = muted ? theme.muted : theme.accentInk;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, w / 2, h / 2 + 2);
+    const tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+    const s = new THREE.Sprite(unique(new THREE.SpriteMaterial({ map: tex, transparent: true })));
+    const k = 0.004; s.scale.set(w * k, h * k, 1); s.renderOrder = 5;
+    return s;
+  }
+
+  // ---------- Bölgeler ----------
+  function buildLobby(g) {
+    const W = 16, D = 12, H = 4.2;
+    const floor = shell(g, W, D, H);
+    const inlay = new THREE.Mesh(new THREE.CircleGeometry(2.4, 56), mat(C.inlay));
+    inlay.rotation.x = -Math.PI / 2; inlay.position.set(0, 0.004, 1.2); inlay.receiveShadow = true; g.add(inlay);
+    wallPanel(g, 'n', W, D, 0, 7.2, 2.3, 1.55, mat(C.cut), 0.06);
+    wallPanel(g, 'n', W, D, 0, 6.4, 1.6, 1.9, texMat(signTex()), 0.08);
+    [[-4, -2], [4, -2], [-4, 2.6], [4, 2.6]].forEach(a => cyl(g, 0.34, 0.34, H, a[0], 0, a[1], C.wall));
+    box(g, 3.4, 1.02, 0.8, 0, 0, -2.6, C.wood);
+    box(g, 3.6, 0.06, 0.96, 0, 1.02, -2.6, C.woodDark);
+    [-1.6, 2.2].forEach(z => bench(g, -7.15, z));
+    [-3.6, 3.6].forEach(z => bench(g, 7.15, z));
+    [[-7.2, -5.2], [7.2, -5.2], [-7.2, 5.2], [7.2, 5.2]].forEach(a => plant(g, a[0], a[1]));
+    [-3.2, 1.6].forEach(u => windowOn(g, 'w', W, D, u, 2.6, 2.3, 0.9));
+    [-4.6, 4.6].forEach(u => windowOn(g, 's', W, D, u, 3.0, 2.6, 0.6));
+    windowOn(g, 's', W, D, 0, 2.2, 2.7, 0);
+    door(g, 'e', W, D, 0, 2.0);
+    return {
+      W, D, floor, start: { x: 0, z: 4.6, yaw: 0 },
+      hotspots: [
+        { title: 'Karşılama masası', text: 'Okula gelen veli ve misafirlerin ilk karşılandığı nokta.', pos: [0, 1.75, -2.6] },
+        { title: 'Tura buradan başla', text: 'Sağdaki geçişten ana koridora, oradan da sınıfa, FabLab’a ve kütüphaneye ulaşabilirsin.', pos: [0, 3.75, -5.55] },
+        { title: 'Bekleme alanı', text: 'Misafirlerin ve velilerin oturup bekleyebildiği alan.', pos: [-7.15, 1.25, 0.3] }
+      ],
+      portals: [{ to: 'koridor', label: 'Koridora git', x: 6.95, z: 0 }]
+    };
+  }
+
+  function buildCorridor(g) {
+    const W = 4.2, D = 30, H = 3.4;
+    const floor = shell(g, W, D, H);
+    for (let i = -7; i <= 7; i++) box(g, W, 0.003, 0.035, 0, 0, i * 2, C.line, { cast: false });
+    for (let i = 0; i < 44; i++) {
+      const z = -13.4 + i * 0.62;
+      if (z > 13.5) break;
+      if (Math.abs(z) < 1.35) continue;
+      box(g, 0.5, 1.95, 0.58, -W / 2 + 0.25, 0, z, i % 2 ? C.blue : C.blue2);
+    }
+    wallPanel(g, 'w', W, D, 0, 2.1, 1.15, 1.0, mat(C.cork), 0.035);
+    [[-0.62, 1.55, '#f4f1e8'], [0.05, 1.7, '#e6eef6'], [0.62, 1.3, '#f4e5da'], [-0.15, 1.18, '#ecf1e4']].forEach(a => wallPanel(g, 'w', W, D, a[0], 0.38, 0.44, a[1], mat(a[2]), 0.045));
+    [-10.5, -5.5, 5.5, 10.5].forEach(u => windowOn(g, 'w', W, D, u, 3.4, 0.8, 2.25));
+    door(g, 'e', W, D, 8, 1.1); door(g, 'e', W, D, -2, 1.6); door(g, 'e', W, D, -9, 1.1);
+    [[3.2, 3.0], [12.2, 2.4], [-12.6, 2.4]].forEach(a => windowOn(g, 'e', W, D, a[0], a[1], 1.6, 1.0));
+    bench(g, W / 2 - 0.3, -5.5);
+    door(g, 'n', W, D, 0, 2.0);
+    windowOn(g, 's', W, D, 0, 2.0, 2.4, 0);
+    return {
+      W, D, floor, start: { x: 0, z: 11.8, yaw: 0 },
+      hotspots: [
+        { title: 'Öğrenci dolapları', text: 'Koridor boyunca öğrencilerin kişisel dolapları sıralanır.', pos: [-1.45, 2.25, 6.2] },
+        { title: 'Duyuru panosu', text: 'Etkinlik, kulüp ve proje duyurularının paylaşıldığı pano.', pos: [-1.65, 2.45, 0] }
+      ],
+      portals: [
+        { to: 'giris', label: 'Lobiye git', x: 0, z: 13.9 },
+        { to: 'sinif', label: 'Sınıfa git', x: 1.25, z: 8 },
+        { to: 'kutuphane', label: 'Kütüphaneye git', x: 1.25, z: -2 },
+        { to: 'fablab', label: 'FabLab’a git', x: 0, z: -13.9 }
+      ],
+      notes: [{ label: 'Fen laboratuvarı yakında', x: 1.3, z: -9, y: 2.0 }]
+    };
+  }
+
+  function buildClassroom(g) {
+    const W = 9, D = 7.6, H = 3.2;
+    const floor = shell(g, W, D, H);
+    wallPanel(g, 'n', W, D, 0.6, 4.4, 1.5, 0.88, mat(C.metal), 0.03);
+    wallPanel(g, 'n', W, D, 0.6, 4.2, 1.34, 0.96, texMat(boardTex()), 0.05);
+    box(g, 4.4, 0.05, 0.12, 0.6, 0.84, -D / 2 + 0.07, C.metal);
+    box(g, 1.6, 0.76, 0.75, -3.0, 0, -2.4, C.wood);
+    chair(g, -3.0, -3.0, -1, C.dark);
+    [-1.9, 0.8, 3.5].forEach(x => [-0.9, 0.6, 2.1].forEach(z => { desk(g, x, z); chair(g, x, z + 0.55, 1, C.blue); }));
+    [-2.0, 1.0].forEach(u => windowOn(g, 'e', W, D, u, 2.4, 1.6, 0.95));
+    door(g, 'w', W, D, 2.6, 1.0);
+    box(g, 3.6, 0.9, 0.45, 0.8, 0, D / 2 - 0.25, C.wood);
+    return {
+      W, D, floor, start: { x: -3.2, z: 1.9, yaw: -0.6 },
+      hotspots: [
+        { title: 'Tahta', text: 'Ders anlatımı ve sunumlar için kullanılan yazı tahtası.', pos: [0.6, 2.62, -3.5] },
+        { title: 'Sıralar', text: 'Bireysel çalışmaya ya da grup çalışmasına göre düzenlenebilen oturma düzeni.', pos: [0.8, 1.3, 0.6] }
+      ],
+      portals: [{ to: 'koridor', label: 'Koridora git', x: -3.95, z: 2.6 }]
+    };
+  }
+
+  function buildFabLab(g) {
+    const W = 12, D = 9, H = 3.6;
+    const floor = shell(g, W, D, H);
+    box(g, 7.2, 0.88, 0.72, 0, 0, -D / 2 + 0.38, C.light);
+    box(g, 7.3, 0.04, 0.78, 0, 0.88, -D / 2 + 0.38, C.woodDark);
+    [-2.4, -0.8, 0.8, 2.4].forEach(x => printer(g, x, 0.92, -D / 2 + 0.38));
+    [-4.4, 0, 4.4].forEach(u => windowOn(g, 'n', W, D, u, 2.4, 1.1, 1.9));
+    box(g, 1.0, 0.95, 1.7, -W / 2 + 0.6, 0, -0.8, C.dark);
+    box(g, 1.04, 0.07, 1.74, -W / 2 + 0.6, 0.95, -0.8, '#6f7d8a');
+    box(g, 0.66, 0.012, 1.24, -W / 2 + 0.6, 1.02, -0.8, '#2b333d', { cast: false });
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 10), accentBasic());
+    led.position.set(-W / 2 + 1.11, 0.8, -0.2); g.add(led);
+    [-2.6, 2.6].forEach(x => {
+      box(g, 3.0, 0.06, 1.4, x, 0.86, -0.4, C.wood);
+      [[-1.38, -0.6], [1.38, -0.6], [-1.38, 0.6], [1.38, 0.6]].forEach(a => cyl(g, 0.035, 0.035, 0.86, x + a[0], 0, -0.4 + a[1], C.metal));
+      [[-0.8, -1.05], [0.8, -1.05], [-0.8, 1.05], [0.8, 1.05]].forEach(a => cyl(g, 0.18, 0.15, 0.62, x + a[0], 0, -0.4 + a[1], C.rust));
+      box(g, 0.5, 0.18, 0.35, x - 0.6, 0.92, -0.5, C.light);
+      box(g, 0.28, 0.02, 0.2, x + 0.7, 0.92, -0.3, '#3d6b4f');
+    });
+    wallPanel(g, 'e', W, D, -1.2, 3.4, 1.3, 1.15, mat('#d6c7ad'), 0.03);
+    for (let i = 0; i < 7; i++) wallPanel(g, 'e', W, D, -2.6 + i * 0.47, 0.07, 0.34 + (i % 3) * 0.12, 1.5, mat(i % 2 ? C.dark : C.rust), 0.07);
+    box(g, 0.5, 1.6, 2.2, W / 2 - 0.3, 0, 2.6, C.wood);
+    [[1.85, C.blue], [2.6, C.rust], [3.35, C.green]].forEach(a => box(g, 0.42, 0.28, 0.6, W / 2 - 0.3, 1.6, a[0], a[1]));
+    door(g, 's', W, D, -1.6, 2.0);
+    return {
+      W, D, floor, start: { x: 1.3, z: 3.1, yaw: 0.05 },
+      hotspots: [
+        { title: '3D yazıcılar', text: 'Öğrencilerin tasarladığı parçaların katman katman üretildiği yazıcılar.', pos: [0, 1.95, -3.9] },
+        { title: 'Lazer kesim makinesi', text: 'Ahşap ve akrilik levhaların hassas şekilde kesildiği ve kazındığı makine.', pos: [-5.4, 1.65, -0.8] },
+        { title: 'Çalışma masaları', text: 'Ekip projeleri, elektronik devreler ve prototip montajı için ortak masalar.', pos: [2.6, 1.45, -0.4] }
+      ],
+      portals: [{ to: 'koridor', label: 'Koridora git', x: -1.6, z: 3.85 }]
+    };
+  }
+
+  function buildLibrary(g) {
+    const W = 14, D = 10, H = 3.6;
+    const floor = shell(g, W, D, H);
+    const rand = seeded(7), list = [];
+    [1.8, 3.8, 5.8].forEach(sx => {
+      const zc = -1.0, L = 4.6;
+      box(g, 0.03, 1.97, L, sx, 0, zc, C.woodDark);
+      [-1, 1].forEach(s => box(g, 0.56, 2.0, 0.04, sx, 0, zc + s * L / 2, C.wood));
+      [0.04, 0.51, 0.98, 1.45, 1.97].forEach(y => box(g, 0.56, 0.03, L, sx, y, zc, C.wood));
+      [-1, 1].forEach(s => books(list, rand, { axis: 'z', from: zc - L / 2 + 0.03, to: zc + L / 2 - 0.03, face: sx + s * 0.14, depth: 0.22, levels: [0.07, 0.54, 1.01, 1.48] }));
+    });
+    const wz = -D / 2 + 0.18, x0 = -5.5, x1 = 6.5;
+    [x0, x1].forEach(x => box(g, 0.04, 2.4, 0.36, x, 0, wz, C.wood));
+    [0.04, 0.51, 0.98, 1.45, 1.92, 2.37].forEach(y => box(g, x1 - x0, 0.03, 0.36, (x0 + x1) / 2, y, wz, C.wood));
+    books(list, rand, { axis: 'x', from: x0 + 0.03, to: x1 - 0.03, face: -D / 2 + 0.16, depth: 0.24, levels: [0.07, 0.54, 1.01, 1.48, 1.95] });
+    instBooks(g, list);
+    [-2.2, 0.8].forEach(z => {
+      box(g, 2.4, 0.05, 1.1, -4.2, 0.72, z, C.wood);
+      [[-1.1, -0.45], [1.1, -0.45], [-1.1, 0.45], [1.1, 0.45]].forEach(a => cyl(g, 0.03, 0.03, 0.72, -4.2 + a[0], 0, z + a[1], C.metal));
+      [-0.6, 0.6].forEach(dx => { chair(g, -4.2 + dx, z - 0.78, -1, C.fabric); chair(g, -4.2 + dx, z + 0.78, 1, C.fabric); });
+    });
+    box(g, 4.2, 0.012, 2.6, 0.2, 0, 3.5, C.rug, { cast: false });
+    armchair(g, -1.1, 3.6, 0.35); armchair(g, 1.5, 3.6, -0.35);
+    cyl(g, 0.35, 0.35, 0.45, 0.2, 0, 3.4, C.wood);
+    [-4.2, 0.2, 4.6].forEach(u => windowOn(g, 's', W, D, u, 2.6, 2.0, 0.8));
+    door(g, 'w', W, D, 2.6, 1.6);
+    return {
+      W, D, floor, start: { x: -5.4, z: 2.6, yaw: -1.2 },
+      hotspots: [
+        { title: 'Kitap rafları', text: 'Roman, kaynak kitap ve dergilerin bulunduğu raflar.', pos: [3.8, 2.35, -1.0] },
+        { title: 'Çalışma masaları', text: 'Sessiz çalışma ve grup ödevleri için ayrılmış masalar.', pos: [-4.2, 1.3, 0.8] },
+        { title: 'Okuma köşesi', text: 'Pencere kenarında, rahat koltuklarla kitap okuma alanı.', pos: [0.2, 1.3, 3.4] }
+      ],
+      portals: [{ to: 'koridor', label: 'Koridora git', x: -6.25, z: 2.6 }]
+    };
+  }
+
+  const ZONES = [
+    { id: 'giris', name: 'Giriş ve lobi', build: buildLobby },
+    { id: 'koridor', name: 'Ana koridor', build: buildCorridor },
+    { id: 'sinif', name: 'Sınıf', build: buildClassroom },
+    { id: 'fablab', name: 'FabLab', build: buildFabLab },
+    { id: 'kutuphane', name: 'Kütüphane', build: buildLibrary },
+    { id: 'fen', name: 'Fen laboratuvarı' },
+    { id: 'kafeterya', name: 'Kafeterya' },
+    { id: 'spor', name: 'Spor salonu' },
+    { id: 'bahce', name: 'Bahçe' }
+  ];
+
+  // ---------- Sahne kurma ----------
+  function buildZone(def) {
+    const group = new THREE.Group();
+    const data = def.build(group);
+    const clickables = [], hotspotFx = [], portalFx = [];
+    data.hotspots.forEach(h => {
+      const core = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 14), accentBasic());
+      core.position.set(h.pos[0], h.pos[1], h.pos[2]);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.19, 40), accentBasic({ transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }));
+      ring.position.copy(core.position);
+      const hit = new THREE.Mesh(new THREE.SphereGeometry(0.36, 10, 8), hitMat);
+      hit.position.copy(core.position);
+      hit.userData.action = { type: 'hotspot', h };
+      group.add(core, ring, hit);
+      clickables.push(hit); hotspotFx.push({ ring });
+    });
+    data.portals.forEach(p => {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.52, 48), accentBasic({ transparent: true, opacity: 0.9, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2; ring.position.set(p.x, 0.012, p.z);
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.4, 48), accentBasic({ transparent: true, opacity: 0.18, depthWrite: false }));
+      disc.rotation.x = -Math.PI / 2; disc.position.set(p.x, 0.01, p.z);
+      const label = labelSprite(p.label);
+      label.position.set(p.x, 2.05, p.z);
+      label.userData.action = { type: 'portal', to: p.to };
+      const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 2.3, 12), hitMat);
+      hit.position.set(p.x, 1.15, p.z);
+      hit.userData.action = { type: 'portal', to: p.to };
+      group.add(ring, disc, label, hit);
+      clickables.push(hit, label); portalFx.push({ disc });
+    });
+    (data.notes || []).forEach(n => {
+      const s = labelSprite(n.label, true);
+      s.position.set(n.x, n.y || 2.0, n.z); group.add(s);
+    });
+    return Object.assign({ id: def.id, name: def.name, group, clickables, hotspotFx, portalFx }, data);
+  }
+  function disposeGroup(g) {
+    g.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      const m = o.material;
+      if (m && m.userData && m.userData.unique) { if (m.map) m.map.dispose(); m.dispose(); }
+    });
+  }
+
+  const ringGeo = new THREE.RingGeometry(0.2, 0.28, 40);
+  const hoverRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0.55, depthWrite: false }));
+  hoverRing.rotation.x = -Math.PI / 2; hoverRing.visible = false; scene.add(hoverRing);
+  const targetRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: theme.accent, transparent: true, opacity: 0, depthWrite: false }));
+  targetRing.rotation.x = -Math.PI / 2; targetRing.visible = false; scene.add(targetRing);
+
+  // ---------- Arayüz ----------
+  const zoneName = $('zone-name'), zoneList = $('zone-list'), spotList = $('spot-list');
+  const card = $('card'), cardTitle = $('card-title'), cardText = $('card-text'), cardClose = $('card-close');
+  const toast = $('toast'), intro = $('intro'), startBtn = $('start');
+  const mapCanvas = $('map'), mapCtx = mapCanvas.getContext('2d');
+
+  const ready = ZONES.filter(z => z.build).length;
+  $('zone-count').textContent = `${ready} bölge hazır, ${ZONES.length - ready} bölge çekim bekliyor`;
+
+  ZONES.forEach(z => {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'zone-btn'; b.dataset.id = z.id;
+    const name = document.createElement('span'); name.textContent = z.name; b.appendChild(name);
+    if (!z.build) {
+      b.disabled = true; b.title = 'Bu bölgenin çekimi henüz yapılmadı';
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = 'Yakında'; b.appendChild(tag);
+    } else {
+      b.addEventListener('click', () => go(z.id));
+    }
+    li.appendChild(b); zoneList.appendChild(li);
+  });
+  function markActive(id) {
+    zoneList.querySelectorAll('.zone-btn').forEach(b => b.setAttribute('aria-current', b.dataset.id === id ? 'true' : 'false'));
+    const active = zoneList.querySelector('[aria-current="true"]');
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  function renderSpots() {
+    spotList.innerHTML = '';
+    zone.hotspots.forEach(h => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'spot-btn'; b.textContent = h.title;
+      b.addEventListener('click', () => { turnTo(h.pos); openCard(h, true); });
+      li.appendChild(b); spotList.appendChild(li);
+    });
+  }
+  function openCard(h, focus) {
+    cardTitle.textContent = h.title; cardText.textContent = h.text;
+    card.hidden = false;
+    if (focus) cardClose.focus();
+  }
+  function closeCard() { card.hidden = true; }
+  cardClose.addEventListener('click', closeCard);
+
+  let toastTimer;
+  function showToast() {
+    toast.textContent = coarse
+      ? 'Sürükleyerek etrafına bak, yere dokunarak yürü.'
+      : 'Sürükleyerek etrafına bak, yere tıklayarak yürü. W A S D tuşları da çalışır.';
+    toast.hidden = false;
+    requestAnimationFrame(() => toast.classList.add('show'));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.classList.remove('show'); setTimeout(() => { toast.hidden = true; }, 450); }, 5200);
+  }
+
+  // ---------- Durum ----------
+  let zone = null, yaw = 0, pitch = 0, walk = null, turn = null, fogT = 1, revealHold = false, time = 0;
+
+  function setFog(e) { scene.fog.near = 0.2 + e * 39.8; scene.fog.far = 1.4 + e * 98.6; }
+  function clampXZ(x, z) {
+    const m = 0.45, hw = zone.W / 2 - m, hd = zone.D / 2 - m;
+    return { x: Math.max(-hw, Math.min(hw, x)), z: Math.max(-hd, Math.min(hd, z)) };
+  }
+
+  function loadZone(id, opts) {
+    opts = opts || {};
+    const def = ZONES.find(z => z.id === id && z.build);
+    if (!def) return;
+    const keep = opts.keepCamera && zone ? { p: camera.position.clone(), yaw, pitch } : null;
+    if (zone) { scene.remove(zone.group); disposeGroup(zone.group); }
+    zone = buildZone(def);
+    scene.add(zone.group);
+    const ext = Math.max(zone.W, zone.D) / 2 + 1.5;
+    const sc = sun.shadow.camera;
+    sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.near = 1; sc.far = 80;
+    sc.updateProjectionMatrix();
+    sun.position.set(9, 26, 12); sun.target.position.set(0, 0, 0);
+    if (keep) { camera.position.copy(keep.p); yaw = keep.yaw; pitch = keep.pitch; }
+    else { camera.position.set(zone.start.x, EYE, zone.start.z); yaw = zone.start.yaw; pitch = -0.04; closeCard(); }
+    walk = null; turn = null; hoverRing.visible = false; targetRing.visible = false;
+    fogT = opts.instant || reduced ? 1 : 0;
+    setFog(fogT);
+    zoneName.textContent = def.name;
+    markActive(def.id);
+    renderSpots();
+    try { history.replaceState(null, '', '#' + def.id); } catch (e) {}
+  }
+  function go(id) { if (!zone || zone.id !== id) loadZone(id); }
+
+  function applyTheme() {
+    readTheme();
+    scene.background.set(theme.bg); scene.fog.color.set(theme.bg);
+    if (theme.dark) {
+      hemi.color.set('#9db0cc'); hemi.groundColor.set('#20252d'); hemi.intensity = 0.62;
+      sun.color.set('#d7e5ff'); sun.intensity = 0.55; glassMat.emissiveIntensity = 0.85;
+    } else {
+      hemi.color.set('#ffffff'); hemi.groundColor.set('#bdb4a6'); hemi.intensity = 0.78;
+      sun.color.set('#fff6ea'); sun.intensity = 0.82; glassMat.emissiveIntensity = 0.32;
+    }
+    hoverRing.material.color.set(theme.accent); targetRing.material.color.set(theme.accent);
+    if (zone) loadZone(zone.id, { instant: true, keepCamera: true });
+  }
+  applyTheme();
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  if (mq.addEventListener) mq.addEventListener('change', applyTheme); else if (mq.addListener) mq.addListener(applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // ---------- Hareket ----------
+  const ease = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  function walkTo(x, z) {
+    const p = clampXZ(x, z);
+    const to = new THREE.Vector3(p.x, EYE, p.z);
+    const dist = to.distanceTo(camera.position);
+    if (dist < 0.1) return;
+    walk = { from: camera.position.clone(), to, t: 0, dur: reduced ? 0.001 : Math.min(2.4, Math.max(0.5, dist / 3)) };
+    targetRing.position.set(p.x, 0.016, p.z); targetRing.visible = true; targetRing.material.opacity = 0.9;
+  }
+  function turnTo(pos) {
+    const dx = pos[0] - camera.position.x, dy = pos[1] - camera.position.y, dz = pos[2] - camera.position.z;
+    const ty = Math.atan2(-dx, -dz), tp = Math.max(-1.3, Math.min(1.3, Math.atan2(dy, Math.hypot(dx, dz))));
+    let d = ty - yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+    turn = { y0: yaw, dy: d, p0: pitch, dp: tp - pitch, t: 0, dur: reduced ? 0.001 : 0.7 };
+  }
+
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function castAt(e) {
+    if (!zone) return null;
+    const r = canvas.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects(zone.clickables, false)[0];
+    if (hit) return { action: hit.object.userData.action };
+    const f = ray.intersectObject(zone.floor, false)[0];
+    return f ? { floor: f.point } : null;
+  }
+  function hover(e) {
+    const res = castAt(e);
+    if (res && res.action) { canvas.style.cursor = 'pointer'; hoverRing.visible = false; return; }
+    canvas.style.cursor = '';
+    if (res && res.floor) {
+      const p = clampXZ(res.floor.x, res.floor.z);
+      hoverRing.position.set(p.x, 0.015, p.z); hoverRing.visible = true;
+    } else hoverRing.visible = false;
+  }
+  function tap(e) {
+    const res = castAt(e);
+    if (!res) return;
+    if (res.action) {
+      if (res.action.type === 'portal') go(res.action.to);
+      else openCard(res.action.h, false);
+    } else if (res.floor) walkTo(res.floor.x, res.floor.z);
+  }
+
+  let down = null;
+  canvas.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), moved: false };
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (down) {
+      const dx = e.clientX - down.lx, dy = e.clientY - down.ly;
+      down.lx = e.clientX; down.ly = e.clientY;
+      if (!down.moved && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) down.moved = true;
+      if (down.moved) {
+        yaw += dx * LOOK; pitch += dy * LOOK;
+        pitch = Math.max(-1.3, Math.min(1.3, pitch));
+        turn = null; canvas.style.cursor = 'grabbing'; hoverRing.visible = false;
+      }
+    } else if (e.pointerType === 'mouse') hover(e);
+  });
+  canvas.addEventListener('pointerup', e => {
+    if (!down) return;
+    const wasTap = !down.moved && performance.now() - down.t < 500;
+    down = null; canvas.style.cursor = '';
+    if (wasTap) tap(e);
+  });
+  canvas.addEventListener('pointercancel', () => { down = null; canvas.style.cursor = ''; });
+  canvas.addEventListener('pointerleave', () => { if (!down) hoverRing.visible = false; });
+
+  const keys = new Set();
+  const MOVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'];
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeCard(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey || !intro.hidden) return;
+    if (MOVE_KEYS.includes(e.code)) { keys.add(e.code); if (e.code.startsWith('Arrow')) e.preventDefault(); }
+  });
+  window.addEventListener('keyup', e => keys.delete(e.code));
+  window.addEventListener('blur', () => keys.clear());
+
+  // ---------- Harita ----------
+  let mapDpr = 1;
+  function sizeMap() {
+    const r = mapCanvas.getBoundingClientRect();
+    mapDpr = Math.min(window.devicePixelRatio || 1, 2);
+    mapCanvas.width = Math.max(1, Math.round(r.width * mapDpr));
+    mapCanvas.height = Math.max(1, Math.round(r.height * mapDpr));
+  }
+  function drawMap() {
+    if (!zone) return;
+    const ctx = mapCtx, w = mapCanvas.width, h = mapCanvas.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, w, h);
+    ctx.setTransform(mapDpr, 0, 0, mapDpr, 0, 0);
+    const cw = w / mapDpr, ch = h / mapDpr, pad = 12;
+    const s = Math.min((cw - pad * 2) / zone.W, (ch - pad * 2) / zone.D);
+    const X = x => cw / 2 + x * s, Y = z => ch / 2 + z * s;
+    ctx.fillStyle = theme.mapFill; ctx.strokeStyle = theme.muted; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.rect(X(-zone.W / 2), Y(-zone.D / 2), zone.W * s, zone.D * s); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = theme.accent;
+    zone.hotspots.forEach(hh => { ctx.beginPath(); ctx.arc(X(hh.pos[0]), Y(hh.pos[2]), 3, 0, Math.PI * 2); ctx.stroke(); });
+    ctx.fillStyle = theme.accent;
+    zone.portals.forEach(p => { ctx.beginPath(); ctx.arc(X(p.x), Y(p.z), 3.6, 0, Math.PI * 2); ctx.fill(); });
+    const px = X(camera.position.x), py = Y(camera.position.z), a = Math.atan2(-Math.cos(yaw), -Math.sin(yaw));
+    ctx.globalAlpha = 0.22; ctx.beginPath(); ctx.moveTo(px, py); ctx.arc(px, py, 24, a - 0.55, a + 0.55); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = theme.surface; ctx.stroke();
+  }
+
+  function resize() {
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    sizeMap();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- Döngü ----------
+  const clock = new THREE.Clock();
+  function frame() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    time += dt;
+    if (turn) {
+      turn.t += dt; const k = ease(Math.min(1, turn.t / turn.dur));
+      yaw = turn.y0 + turn.dy * k; pitch = turn.p0 + turn.dp * k;
+      if (k >= 1) turn = null;
+    }
+    camera.rotation.set(pitch, yaw, 0);
+
+    let f = 0, s = 0;
+    if (keys.has('KeyW') || keys.has('ArrowUp')) f += 1;
+    if (keys.has('KeyS') || keys.has('ArrowDown')) f -= 1;
+    if (keys.has('KeyD') || keys.has('ArrowRight')) s += 1;
+    if (keys.has('KeyA') || keys.has('ArrowLeft')) s -= 1;
+    if (zone && (f || s)) {
+      walk = null;
+      const step = SPEED * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 2 : 1) * dt;
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+      const p = clampXZ(camera.position.x + (fx * f + rx * s) * step, camera.position.z + (fz * f + rz * s) * step);
+      camera.position.x = p.x; camera.position.z = p.z;
+    }
+    if (walk) {
+      walk.t += dt; const k = ease(Math.min(1, walk.t / walk.dur));
+      camera.position.lerpVectors(walk.from, walk.to, k);
+      if (k >= 1) walk = null;
+    }
+    if (fogT < 1 && !revealHold) { fogT = Math.min(1, fogT + dt / 0.9); setFog(ease(fogT)); }
+    if (targetRing.visible) {
+      targetRing.material.opacity -= dt * 0.9;
+      if (targetRing.material.opacity <= 0) targetRing.visible = false;
+    }
+    if (zone) {
+      zone.hotspotFx.forEach((fx, i) => {
+        fx.ring.quaternion.copy(camera.quaternion);
+        if (!reduced) {
+          const ph = (time * 0.55 + i * 0.33) % 1;
+          fx.ring.scale.setScalar(1 + ph * 1.3); fx.ring.material.opacity = 0.7 * (1 - ph);
+        }
+      });
+      if (!reduced) zone.portalFx.forEach(fx => { fx.disc.material.opacity = 0.16 + 0.1 * Math.sin(time * 2.4); });
+    }
+    renderer.render(scene, camera);
+    drawMap();
+  }
+
+  // ---------- Başlat ----------
+  try {
+    await Promise.race([
+      Promise.all([document.fonts.load('700 46px Manrope'), document.fonts.load('700 132px Manrope')]),
+      new Promise(r => setTimeout(r, 1500))
+    ]);
+  } catch (e) {}
+
+  let seen = false;
+  try { seen = localStorage.getItem('hisar-tur-intro') === '1'; } catch (e) {}
+
+  const fromHash = (location.hash || '').slice(1);
+  loadZone(ZONES.some(z => z.id === fromHash && z.build) ? fromHash : 'giris');
+  if (!seen && !reduced) { revealHold = true; fogT = 0; setFog(0); }
+
+  function closeIntro() {
+    intro.hidden = true; revealHold = false;
+    try { localStorage.setItem('hisar-tur-intro', '1'); } catch (e) {}
+    showToast();
+  }
+  startBtn.addEventListener('click', closeIntro);
+  $('help-btn').addEventListener('click', () => {
+    startBtn.textContent = 'Tura dön';
+    intro.hidden = false; startBtn.focus();
+  });
+  if (seen) intro.hidden = true; else startBtn.focus();
+
+  window.addEventListener('hashchange', () => {
+    const id = (location.hash || '').slice(1);
+    if (ZONES.some(z => z.id === id && z.build)) go(id);
+  });
+
+  renderer.setAnimationLoop(frame);
+})();
+</script>
+</body>
+</html>
